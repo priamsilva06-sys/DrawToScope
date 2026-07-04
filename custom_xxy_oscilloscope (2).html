@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom XXY Oscilloscope - Drawing Signal Generator</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&amp;display=swap');
+        
+        body {
+            background-color: #0a0a0a;
+            color: #00ff00;
+            font-family: 'VT323', 'Courier New', monospace;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.3;
+        }
+        
+        h1 {
+            text-align: center;
+            font-size: 2.5em;
+            margin-bottom: 5px;
+            text-shadow: 0 0 10px #00ff00;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #00aa00;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+        }
+        
+        .top-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: center;
+            justify-content: center;
+            background: #111;
+            padding: 15px;
+            border: 2px solid #003300;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        label {
+            font-size: 1.1em;
+            white-space: nowrap;
+        }
+        
+        input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            accent-color: #00ff00;
+        }
+        
+        input[type="range"] {
+            width: 200px;
+            accent-color: #00ff00;
+        }
+        
+        input[type="number"] {
+            width: 90px;
+            background: #000;
+            color: #00ff00;
+            border: 1px solid #003300;
+            font-family: monospace;
+            font-size: 1.1em;
+            padding: 4px;
+        }
+        
+        button {
+            background: #001100;
+            color: #00ff00;
+            border: 2px solid #00aa00;
+            padding: 8px 16px;
+            font-family: 'VT323', monospace;
+            font-size: 1.2em;
+            cursor: pointer;
+            transition: all 0.1s;
+        }
+        
+        button:hover {
+            background: #003300;
+            box-shadow: 0 0 8px #00ff00;
+        }
+        
+        .main-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            justify-content: center;
+        }
+        
+        .panel {
+            background: #111;
+            border: 3px solid #003300;
+            padding: 15px;
+            border-radius: 4px;
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.1);
+        }
+        
+        .panel h3 {
+            margin: 0 0 10px 0;
+            font-size: 1.4em;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+        }
+        
+        canvas {
+            display: block;
+            background: #000;
+            border: 2px solid #004400;
+            image-rendering: crisp-edges;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.8);
+        }
+        
+        #drawCanvas {
+            cursor: crosshair;
+        }
+        
+        .status {
+            font-size: 1em;
+            color: #00aa00;
+            margin-top: 8px;
+            min-height: 20px;
+        }
+        
+        .note {
+            font-size: 0.95em;
+            color: #008800;
+            max-width: 600px;
+            margin: 15px auto;
+            text-align: center;
+        }
+        
+        .glow {
+            text-shadow: 0 0 5px #00ff00;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="glow">XXY OSCILLOSCOPE</h1>
+    <div class="subtitle">Custom Drawing Signal Generator • Real-time Audio &amp; Visuals</div>
+    
+    <div class="top-controls">
+        <div class="control-group">
+            <label for="freqSlider">Frequency:</label>
+            <input type="range" id="freqSlider" min="0" max="1000" step="0.1" value="60">
+            <input type="number" id="freqInput" min="0" max="20000" step="0.1" value="60">
+            <span style="color:#008800; font-size:0.9em;">Hz (0-1000 slider, up to 20000 in input)</span>
+        </div>
+        
+        <div class="control-group">
+            <label for="sweepCheckbox">
+                <input type="checkbox" id="sweepCheckbox"> 
+                Sweep Mode (waveform view)
+            </label>
+        </div>
+        
+        <div class="control-group">
+            <label>Volume:</label>
+            <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="0.6">
+        </div>
+    </div>
+    
+    <div class="main-layout">
+        <!-- Oscilloscope Display Panel -->
+        <div class="panel">
+            <h3>
+                <span>OSCILLOSCOPE DISPLAY</span>
+                <span id="modeLabel" style="font-size:0.8em; color:#00aa00;">XY MODE</span>
+            </h3>
+            <canvas id="scopeCanvas" width="520" height="520"></canvas>
+            <div class="status" id="scopeStatus">Real-time trace • Matches audio exactly</div>
+        </div>
+        
+        <!-- Drawing Box Panel -->
+        <div class="panel">
+            <h3>
+                <span>DRAWING BOX</span>
+                <label style="font-size:0.95em; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="checkbox" id="enableCheckbox"> 
+                    <span style="color:#ffff00;">Enable as Signal Generator</span>
+                </label>
+                <label style="font-size:0.9em; display:flex; align-items:center; gap:5px; cursor:pointer; margin-left:12px;">
+                    <input type="checkbox" id="autoCloseCheckbox" checked> 
+                    <span style="color:#aaffaa;">Auto-snap close</span>
+                </label>
+                
+                <!-- Straight Line Tool -->
+                <label style="font-size:0.9em; display:flex; align-items:center; gap:5px; cursor:pointer; margin-left:12px; color:#ffaa00;">
+                    <input type="checkbox" id="straightLineCheckbox"> 
+                    Straight Line Tool
+                </label>
+            </h3>
+
+            <!-- (Waveform drawing mode removed) -->
+            <canvas id="drawCanvas" width="420" height="420"></canvas>
+            <div class="status" id="drawStatus">Draw any shape. Use "Draw X &amp; Y Waveforms" mode in Sweep to create custom curves from time-domain signals.</div>
+            <button id="clearBtn" style="margin-top:10px;">CLEAR DRAWING</button>
+        </div>
+    </div>
+    
+    <div class="note">
+        Draw any shape in the black box.<br>
+        When <strong>Auto-snap close</strong> is off, the beam traces your exact drawing then snaps back to the start.<br>
+        Toggle <strong>Sweep Mode</strong> to see the X and Y waveforms over time.
+    </div>
+    
+    <script>
+        // ==================== CONFIG & STATE ====================
+        const DRAW_SIZE = 420;
+        const SCOPE_SIZE = 520;
+        
+        let path = [];           // array of {x: -1..1, y: -1..1} normalized, y positive = up
+        let isDrawing = false;
+        let isClosed = false;
+        let pathPoints = [];     // closed version for interpolation
+        let cumLengths = [];
+        let totalLength = 0;
+        
+        let frequency = 60;
+        let phase = 0;
+        let isEnabled = false;
+        let autoCloseEnabled = true;   // toggle for auto-snap close behavior
+        let straightLineMode = false;
+        
+        // Straight line tool state
+        let lineStartPoint = null;
+        let linePreviewEnd = null;
+        
+        // (Waveform drawing variables removed)
+        
+        let audioCtx = null;
+        let scriptNode = null;
+        let gainNode = null;
+        
+        // ==================== CANVAS & CONTEXT ====================
+        const drawCanvas = document.getElementById('drawCanvas');
+        const drawCtx = drawCanvas.getContext('2d', { alpha: true });
+        
+        const scopeCanvas = document.getElementById('scopeCanvas');
+        const scopeCtx = scopeCanvas.getContext('2d', { alpha: true });
+        
+        const enableCheckbox = document.getElementById('enableCheckbox');
+        const freqSlider = document.getElementById('freqSlider');
+        const freqInput = document.getElementById('freqInput');
+        const sweepCheckbox = document.getElementById('sweepCheckbox');
+        const volumeSlider = document.getElementById('volumeSlider');
+        const clearBtn = document.getElementById('clearBtn');
+        const drawStatus = document.getElementById('drawStatus');
+        const scopeStatus = document.getElementById('scopeStatus');
+        const modeLabel = document.getElementById('modeLabel');
+        const autoCloseCheckbox = document.getElementById('autoCloseCheckbox');
+        
+        // ==================== HELPER FUNCTIONS ====================
+        function getNormPos(clientX, clientY) {
+            const rect = drawCanvas.getBoundingClientRect();
+            let nx = ((clientX - rect.left) / rect.width - 0.5) * 2;
+            let ny = (0.5 - (clientY - rect.top) / rect.height) * 2; // y positive up
+            nx = Math.max(-1, Math.min(1, nx));
+            ny = Math.max(-1, Math.min(1, ny));
+            return { x: nx, y: ny };
+        }
+        
+        function dist(a, b) {
+            return Math.hypot(a.x - b.x, a.y - b.y);
+        }
+        
+        function updatePathData() {
+            if (path.length < 2) {
+                pathPoints = [];
+                cumLengths = [];
+                totalLength = 0;
+                return;
+            }
+            
+            // Always create a closed loop for the signal (user does NOT need to close the shape)
+            pathPoints = path.slice();
+            const first = pathPoints[0];
+            const last = pathPoints[pathPoints.length - 1];
+            if (dist(first, last) > 0.001) {
+                pathPoints.push({ ...first }); // auto-close by connecting end back to start
+            }
+            
+            cumLengths = [0];
+            totalLength = 0;
+            
+            for (let i = 1; i < pathPoints.length; i++) {
+                const d = dist(pathPoints[i - 1], pathPoints[i]);
+                totalLength += d;
+                cumLengths.push(totalLength);
+            }
+            
+            // avoid zero length
+            if (totalLength < 0.0001) totalLength = 0.0001;
+        }
+        
+        function getPositionAt(frac) {
+            // When Auto-snap is disabled and path is open → trace the exact drawn path
+            // and snap back to start when reaching the end (redraw effect)
+            const useOpenTracing = !autoCloseEnabled && !isClosed && path.length >= 2;
+
+            if (useOpenTracing) {
+                // === OPEN PATH MODE: Draw exactly as user drew, then snap back ===
+                if (path.length < 2) return { x: 0, y: 0 };
+
+                // Calculate total length of the original (possibly open) path
+                let openTotalLength = 0;
+                for (let i = 1; i < path.length; i++) {
+                    openTotalLength += dist(path[i - 1], path[i]);
+                }
+                if (openTotalLength < 0.0001) return path[0];
+
+                let target = frac * openTotalLength;
+                if (target < 0) target = 0;
+                if (target > openTotalLength) target = openTotalLength;
+
+                let accumulated = 0;
+                for (let i = 1; i < path.length; i++) {
+                    const segLen = dist(path[i - 1], path[i]);
+                    if (target <= accumulated + segLen) {
+                        const t = segLen > 0.00001 ? (target - accumulated) / segLen : 0;
+                        const p1 = path[i - 1];
+                        const p2 = path[i];
+                        return {
+                            x: p1.x + t * (p2.x - p1.x),
+                            y: p1.y + t * (p2.y - p1.y)
+                        };
+                    }
+                    accumulated += segLen;
+                }
+                return path[path.length - 1];
+            }
+
+            // === CLOSED / NORMAL MODE: Smooth looping around closed shape ===
+            if (!pathPoints.length || totalLength < 0.0001) return { x: 0, y: 0 };
+
+            let target = frac * totalLength;
+            if (target < 0) target = 0;
+            if (target > totalLength) target = totalLength;
+
+            for (let i = 1; i < cumLengths.length; i++) {
+                if (target <= cumLengths[i]) {
+                    const prevD = cumLengths[i - 1];
+                    const segLen = cumLengths[i] - prevD;
+                    const t = segLen > 0.00001 ? (target - prevD) / segLen : 0;
+                    const p1 = pathPoints[i - 1];
+                    const p2 = pathPoints[i];
+                    return {
+                        x: p1.x + t * (p2.x - p1.x),
+                        y: p1.y + t * (p2.y - p1.y)
+                    };
+                }
+            }
+            return pathPoints[pathPoints.length - 1];
+        }
+        
+        // ==================== DRAWING CANVAS ====================
+        function redrawDrawing() {
+            drawCtx.fillStyle = '#000000';
+            drawCtx.fillRect(0, 0, DRAW_SIZE, DRAW_SIZE);
+            
+            // subtle grid
+            drawCtx.strokeStyle = '#002200';
+            drawCtx.lineWidth = 1;
+            const step = DRAW_SIZE / 8;
+            for (let i = 1; i < 8; i++) {
+                drawCtx.beginPath();
+                drawCtx.moveTo(i * step, 0);
+                drawCtx.lineTo(i * step, DRAW_SIZE);
+                drawCtx.moveTo(0, i * step);
+                drawCtx.lineTo(DRAW_SIZE, i * step);
+                drawCtx.stroke();
+            }
+            // center cross
+            drawCtx.strokeStyle = '#003300';
+            drawCtx.beginPath();
+            drawCtx.moveTo(DRAW_SIZE/2, 0);
+            drawCtx.lineTo(DRAW_SIZE/2, DRAW_SIZE);
+            drawCtx.moveTo(0, DRAW_SIZE/2);
+            drawCtx.lineTo(DRAW_SIZE, DRAW_SIZE/2);
+            drawCtx.stroke();
+            
+            if (path.length === 0) {
+                drawStatus.textContent = 'Draw any shape (open OK). Auto-snap toggle controls if finishing near start auto-closes it. Signal always loops.';
+                drawStatus.style.color = '#00aa00';
+                return;
+            }
+            
+            // draw current path (temp or final)
+            drawCtx.strokeStyle = isClosed ? '#00ff00' : '#aaffaa';
+            drawCtx.lineWidth = isClosed ? 2.5 : 2;
+            drawCtx.shadowColor = isClosed ? '#00ff00' : '#88ff88';
+            drawCtx.shadowBlur = isClosed ? 4 : 2;
+            
+            drawCtx.beginPath();
+            for (let i = 0; i < path.length; i++) {
+                const px = (path[i].x * 0.48 + 0.5) * DRAW_SIZE;
+                const py = (-path[i].y * 0.48 + 0.5) * DRAW_SIZE;
+                if (i === 0) drawCtx.moveTo(px, py);
+                else drawCtx.lineTo(px, py);
+            }
+            if (isClosed) drawCtx.closePath();
+            drawCtx.stroke();
+            drawCtx.shadowBlur = 0;
+            
+            // Straight line preview (live rotation while dragging)
+            if (straightLineMode && lineStartPoint && linePreviewEnd) {
+                drawCtx.strokeStyle = '#ffff00';
+                drawCtx.lineWidth = 2.5;
+                drawCtx.shadowColor = '#ffff00';
+                drawCtx.shadowBlur = 8;
+                
+                const x1 = (lineStartPoint.x * 0.48 + 0.5) * DRAW_SIZE;
+                const y1 = (-lineStartPoint.y * 0.48 + 0.5) * DRAW_SIZE;
+                const x2 = (linePreviewEnd.x * 0.48 + 0.5) * DRAW_SIZE;
+                const y2 = (-linePreviewEnd.y * 0.48 + 0.5) * DRAW_SIZE;
+                
+                drawCtx.beginPath();
+                drawCtx.moveTo(x1, y1);
+                drawCtx.lineTo(x2, y2);
+                drawCtx.stroke();
+                drawCtx.shadowBlur = 0;
+            }
+            
+            // If signal enabled and path is open, draw faint closing line to show it will be looped
+            if (isEnabled && !isClosed && path.length > 1) {
+                const first = path[0];
+                const last = path[path.length - 1];
+                const x1 = (last.x * 0.48 + 0.5) * DRAW_SIZE;
+                const y1 = (-last.y * 0.48 + 0.5) * DRAW_SIZE;
+                const x2 = (first.x * 0.48 + 0.5) * DRAW_SIZE;
+                const y2 = (-first.y * 0.48 + 0.5) * DRAW_SIZE;
+                drawCtx.strokeStyle = 'rgba(0, 255, 0, 0.25)';
+                drawCtx.lineWidth = 1.5;
+                drawCtx.setLineDash([4, 6]);
+                drawCtx.beginPath();
+                drawCtx.moveTo(x1, y1);
+                drawCtx.lineTo(x2, y2);
+                drawCtx.stroke();
+                drawCtx.setLineDash([]);
+            }
+            
+            // start point indicator (to help close the loop) — only shown when Auto-snap is enabled
+            if (autoCloseEnabled && !isClosed && path.length > 0) {
+                const startPx = (path[0].x * 0.48 + 0.5) * DRAW_SIZE;
+                const startPy = (-path[0].y * 0.48 + 0.5) * DRAW_SIZE;
+                drawCtx.fillStyle = '#ff4444';
+                drawCtx.beginPath();
+                drawCtx.arc(startPx, startPy, 6, 0, Math.PI * 2);
+                drawCtx.fill();
+                drawCtx.strokeStyle = '#ffaaaa';
+                drawCtx.lineWidth = 1;
+                drawCtx.beginPath();
+                drawCtx.arc(startPx, startPy, 10, 0, Math.PI * 2);
+                drawCtx.stroke();
+            }
+            
+            // end point
+            if (path.length > 1 && !isClosed) {
+                const endPx = (path[path.length-1].x * 0.48 + 0.5) * DRAW_SIZE;
+                const endPy = (-path[path.length-1].y * 0.48 + 0.5) * DRAW_SIZE;
+                drawCtx.fillStyle = '#ffff00';
+                drawCtx.beginPath();
+                drawCtx.arc(endPx, endPy, 4, 0, Math.PI * 2);
+                drawCtx.fill();
+            }
+            
+            if (isClosed) {
+                drawStatus.textContent = '✓ Loop closed (auto-snap) • Signal ready. Enable the checkbox.';
+                drawStatus.style.color = '#ffff00';
+            } else if (path.length > 2) {
+                drawStatus.textContent = 'Open path OK — auto-loops for signal. (If Auto-snap enabled, finish near red dot to snap close)';
+                drawStatus.style.color = '#aaffaa';
+            }
+        }
+        
+        function startDrawing(e) {
+            isDrawing = true;
+            
+            const clientX = e.clientX || (e.touches && e.touches[0] && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0] && e.touches[0].clientY);
+            
+            const pos = getNormPos(clientX, clientY);
+            
+            if (straightLineMode) {
+                lineStartPoint = pos;
+                linePreviewEnd = pos;
+                redrawDrawing();
+                return;
+            }
+            
+            path = [pos];
+            isClosed = false;
+            redrawDrawing();
+        }
+        
+        function continueDrawing(e) {
+            if (!isDrawing) return;
+            
+            const rect = drawCanvas.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0] && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0] && e.touches[0].clientY);
+            
+            if (straightLineMode && lineStartPoint) {
+                linePreviewEnd = getNormPos(clientX, clientY);
+                redrawDrawing();
+                return;
+            }
+            
+            // Normal freehand shape mode
+            const pos = getNormPos(clientX, clientY);
+            const last = path[path.length - 1];
+            if (dist(last, pos) > 0.012) {
+                path.push(pos);
+                redrawDrawing();
+            }
+        }
+        
+        function endDrawing(e) {
+            if (!isDrawing) return;
+            isDrawing = false;
+            
+            if (straightLineMode && lineStartPoint && linePreviewEnd) {
+                // Finalize the straight line
+                if (dist(lineStartPoint, linePreviewEnd) > 0.01) {
+                    path.push(lineStartPoint);
+                    path.push(linePreviewEnd);
+                }
+                lineStartPoint = null;
+                linePreviewEnd = null;
+                redrawDrawing();
+                return;
+            }
+            
+            if (path.length < 3) {
+                path = [];
+                redrawDrawing();
+                return;
+            }
+            
+            const first = path[0];
+            const last = path[path.length - 1];
+            const d = dist(first, last);
+            
+            // auto-snap if close enough (about 8-10px) AND the toggle is enabled
+            if (autoCloseEnabled && d < 0.025 && path.length > 4) {
+                path[path.length - 1] = { ...first }; // snap exactly
+                isClosed = true;
+                updatePathData();
+                if (isEnabled) {
+                    // already running, just updated
+                }
+            } else {
+                isClosed = false;
+            }
+            
+            redrawDrawing();
+            
+            // update signal data if enabled (always auto-closes now)
+            if (isEnabled && audioCtx) {
+                updatePathData();
+            }
+        }
+        
+        // Touch support
+        drawCanvas.addEventListener('touchstart', (e) => { e.preventDefault(); startDrawing(e); }, {passive: false});
+        drawCanvas.addEventListener('touchmove', (e) => { e.preventDefault(); continueDrawing(e); }, {passive: false});
+        drawCanvas.addEventListener('touchend', (e) => { e.preventDefault(); endDrawing(e); }, {passive: false});
+        
+        // Mouse
+        drawCanvas.addEventListener('mousedown', startDrawing);
+        drawCanvas.addEventListener('mousemove', continueDrawing);
+        window.addEventListener('mouseup', endDrawing);
+        
+        // ==================== SCOPE DRAWING ====================
+        function drawScope(visualFrac) {
+            const ctx = scopeCtx;
+            const w = SCOPE_SIZE;
+            const h = SCOPE_SIZE;
+            
+            // fade persistence (phosphor effect)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.18)';
+            ctx.fillRect(0, 0, w, h);
+            
+            // graticule
+            ctx.strokeStyle = '#003300';
+            ctx.lineWidth = 1;
+            const gx = w / 10;
+            for (let i = 1; i < 10; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * gx, 0);
+                ctx.lineTo(i * gx, h);
+                ctx.moveTo(0, i * gx);
+                ctx.lineTo(w, i * gx);
+                ctx.stroke();
+            }
+            // center cross thicker
+            ctx.strokeStyle = '#004400';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h);
+            ctx.moveTo(0, h/2); ctx.lineTo(w, h/2);
+            ctx.stroke();
+            
+            const sweepMode = sweepCheckbox.checked;
+            modeLabel.textContent = sweepMode ? 'SWEEP MODE' : 'XY MODE';
+            modeLabel.style.color = sweepMode ? '#00aaff' : '#00ff00';
+            
+            if (!isEnabled || pathPoints.length === 0) {
+                ctx.fillStyle = '#003300';
+                ctx.font = '16px VT323, monospace';
+                ctx.fillText('NO SIGNAL', w/2 - 45, h/2);
+                ctx.fillText('Enable & draw a shape (any path)', w/2 - 110, h/2 + 22);
+                scopeStatus.textContent = 'Waiting for drawing + enable...';
+                return;
+            }
+            
+            const frac = (visualFrac !== undefined) ? visualFrac : (phase / (2 * Math.PI));
+            
+            if (sweepMode) {
+                // === SWEEP / WAVEFORM VIEW ===
+                // X channel (top)
+                ctx.strokeStyle = '#00ff00';
+                ctx.lineWidth = 2.5;
+                ctx.shadowColor = '#00ff00';
+                ctx.shadowBlur = 3;
+                
+                ctx.beginPath();
+                const samples = 280;
+                const periodsToShow = 2.5;
+                
+                for (let i = 0; i <= samples; i++) {
+                    const f = (i / samples) * periodsToShow;
+                    const pfrac = f % 1;
+                    const pos = getPositionAt(pfrac);
+                    const sx = (i / samples) * w;
+                    const sy = h * 0.22 - pos.x * (h * 0.18); // X trace in upper area
+                    if (i === 0) ctx.moveTo(sx, sy);
+                    else ctx.lineTo(sx, sy);
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                
+                // Y channel (bottom)
+                ctx.strokeStyle = '#00ffff';
+                ctx.shadowColor = '#00ffff';
+                ctx.shadowBlur = 3;
+                ctx.beginPath();
+                for (let i = 0; i <= samples; i++) {
+                    const f = (i / samples) * periodsToShow;
+                    const pfrac = f % 1;
+                    const pos = getPositionAt(pfrac);
+                    const sx = (i / samples) * w;
+                    const sy = h * 0.72 - pos.y * (h * 0.18); // Y trace in lower area
+                    if (i === 0) ctx.moveTo(sx, sy);
+                    else ctx.lineTo(sx, sy);
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                
+                // channel labels
+                ctx.fillStyle = '#00ff00';
+                ctx.font = 'bold 15px VT323, monospace';
+                ctx.fillText('X', 12, h * 0.22 - 8);
+                ctx.fillStyle = '#00ffff';
+                ctx.fillText('Y', 12, h * 0.72 - 8);
+                
+                // current time cursor (bright line)
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                const cursorX = ((frac % 1) / periodsToShow) * w * periodsToShow;
+                if (cursorX < w) {
+                    ctx.beginPath();
+                    ctx.moveTo(cursorX, 0);
+                    ctx.lineTo(cursorX, h);
+                    ctx.stroke();
+                }
+                
+                scopeStatus.textContent = `Waveform view • ${frequency.toFixed(1)} Hz • ${periodsToShow} periods shown`;
+                
+            } else {
+                // === XY MODE (Lissajous / shape trace) ===
+                // Draw the shape using the original path (respects open/closed when Auto-snap is off)
+                ctx.strokeStyle = '#006600';
+                ctx.lineWidth = 2.5;
+                ctx.shadowColor = '#00aa00';
+                ctx.shadowBlur = 6;
+                
+                ctx.beginPath();
+                const drawPath = (isClosed || !autoCloseEnabled) ? path : pathPoints;
+                for (let i = 0; i < drawPath.length; i++) {
+                    const px = (drawPath[i].x * 0.46 + 0.5) * w;
+                    const py = (-drawPath[i].y * 0.46 + 0.5) * h;
+                    if (i === 0) ctx.moveTo(px, py);
+                    else ctx.lineTo(px, py);
+                }
+                if (isClosed || autoCloseEnabled) {
+                    ctx.closePath();
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+                
+                // If the path is open but signal is enabled, draw a faint closing segment in the scope too
+                if (isEnabled && !isClosed && path.length > 1) {
+                    const first = path[0];
+                    const last = path[path.length - 1];
+                    const x1 = (last.x * 0.46 + 0.5) * w;
+                    const y1 = (-last.y * 0.46 + 0.5) * h;
+                    const x2 = (first.x * 0.46 + 0.5) * w;
+                    const y2 = (-first.y * 0.46 + 0.5) * h;
+                    ctx.strokeStyle = 'rgba(0, 255, 0, 0.2)';
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([3, 5]);
+                    ctx.beginPath();
+                    ctx.moveTo(x1, y1);
+                    ctx.lineTo(x2, y2);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                }
+                
+                // bright tracing dot + short trail
+                const pos = getPositionAt(frac);
+                const dx = (pos.x * 0.46 + 0.5) * w;
+                const dy = (-pos.y * 0.46 + 0.5) * h;
+                
+                // trail (previous positions)
+                ctx.strokeStyle = '#aaffaa';
+                ctx.lineWidth = 1.5;
+                ctx.shadowBlur = 0;
+                const trailSteps = 12;
+                ctx.beginPath();
+                for (let k = 0; k < trailSteps; k++) {
+                    const tfrac = (frac - k * 0.008 + 1) % 1;
+                    const tpos = getPositionAt(tfrac);
+                    const tx = (tpos.x * 0.46 + 0.5) * w;
+                    const ty = (-tpos.y * 0.46 + 0.5) * h;
+                    if (k === 0) ctx.moveTo(tx, ty);
+                    else ctx.lineTo(tx, ty);
+                }
+                ctx.stroke();
+                
+                // main bright dot
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = '#ffffff';
+                ctx.shadowBlur = 8;
+                ctx.beginPath();
+                ctx.arc(dx, dy, 5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                
+                // extra glow ring
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.arc(dx, dy, 9, 0, Math.PI * 2);
+                ctx.stroke();
+                
+                scopeStatus.textContent = `XY trace • ${frequency.toFixed(1)} Hz • Loop speed matches audio`;
+            }
+        }
+        
+        // ==================== AUDIO ENGINE ====================
+        function initAudio() {
+            if (audioCtx) return;
+            
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            
+            const bufferSize = 1024;
+            scriptNode = audioCtx.createScriptProcessor(bufferSize, 0, 2);
+            
+            scriptNode.onaudioprocess = function(e) {
+                const outputL = e.outputBuffer.getChannelData(0);
+                const outputR = e.outputBuffer.getChannelData(1);
+                const sr = audioCtx.sampleRate;
+                
+                if (!isEnabled || pathPoints.length === 0 || totalLength < 0.0001) {
+                    for (let i = 0; i < outputL.length; i++) {
+                        outputL[i] = 0;
+                        outputR[i] = 0;
+                    }
+                    return;
+                }
+                
+                const phaseInc = (2 * Math.PI * frequency) / sr;
+                
+                for (let i = 0; i < outputL.length; i++) {
+                    phase += phaseInc;
+                    if (phase > 2 * Math.PI) phase -= 2 * Math.PI;
+                    
+                    const frac = phase / (2 * Math.PI);
+                    const pos = getPositionAt(frac);
+                    
+                    outputL[i] = pos.x * 0.92;
+                    outputR[i] = pos.y * 0.92;
+                }
+            };
+            
+            gainNode = audioCtx.createGain();
+            gainNode.gain.value = parseFloat(volumeSlider.value);
+            
+            scriptNode.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+        }
+        
+        function toggleEnabled(enabled) {
+            isEnabled = enabled;
+            
+            if (enabled) {
+                if (path.length < 2) {
+                    drawStatus.textContent = 'Draw at least a simple line or shape first!';
+                    drawStatus.style.color = '#ff6666';
+                    enableCheckbox.checked = false;
+                    isEnabled = false;
+                    return;
+                }
+                
+                initAudio();
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume().catch(() => {});
+                }
+                updatePathData();
+                redrawDrawing();
+                drawScope(phase / (2 * Math.PI));
+                drawStatus.textContent = `✓ SIGNAL ACTIVE at ${frequency.toFixed(1)} Hz • Your drawing is active`;
+                drawStatus.style.color = '#ffff00';
+                scopeStatus.textContent = 'Live from your drawing • Real-time updates';
+            } else {
+                if (gainNode) {
+                    gainNode.gain.value = 0;
+                    setTimeout(() => {
+                        if (gainNode && !isEnabled) gainNode.gain.value = parseFloat(volumeSlider.value);
+                    }, 80);
+                }
+                drawStatus.textContent = 'Signal generator disabled. Draw or re-enable to hear it.';
+                drawStatus.style.color = '#00aa00';
+                redrawDrawing();
+                drawScope();
+            }
+        }
+        
+        // ==================== EVENT LISTENERS ====================
+        enableCheckbox.addEventListener('change', () => {
+            toggleEnabled(enableCheckbox.checked);
+        });
+        
+        autoCloseCheckbox.addEventListener('change', () => {
+            autoCloseEnabled = autoCloseCheckbox.checked;
+            redrawDrawing(); // update visuals (start dot etc.)
+        });
+        
+        const straightLineCheckbox = document.getElementById('straightLineCheckbox');
+        straightLineCheckbox.addEventListener('change', () => {
+            straightLineMode = straightLineCheckbox.checked;
+            lineStartPoint = null;
+            linePreviewEnd = null;
+            redrawDrawing();
+        });
+        
+        freqSlider.addEventListener('input', () => {
+            frequency = parseFloat(freqSlider.value);
+            freqInput.value = frequency.toFixed(1);
+        });
+        
+        freqInput.addEventListener('change', () => {
+            let val = parseFloat(freqInput.value);
+            if (isNaN(val)) val = 60;
+            frequency = Math.max(0, Math.min(20000, val));
+            freqInput.value = frequency.toFixed(1);
+            if (frequency <= 1000) {
+                freqSlider.value = frequency;
+            } else {
+                freqSlider.value = 1000;
+            }
+        });
+        
+        volumeSlider.addEventListener('input', () => {
+            if (gainNode) {
+                gainNode.gain.value = parseFloat(volumeSlider.value);
+            }
+        });
+        
+        sweepCheckbox.addEventListener('change', () => {
+            // immediate visual update
+        });
+        
+        clearBtn.addEventListener('click', () => {
+            path = [];
+            isClosed = false;
+            pathPoints = [];
+            cumLengths = [];
+            totalLength = 0;
+            redrawDrawing();
+            if (isEnabled) {
+                isEnabled = false;
+                enableCheckbox.checked = false;
+                if (gainNode) gainNode.gain.value = 0;
+            }
+            drawStatus.textContent = 'Drawing cleared. Draw a new closed shape.';
+            drawStatus.style.color = '#00aa00';
+        });
+        
+        // sync freq input/slider on load
+        function syncFreq() {
+            freqSlider.value = frequency;
+            freqInput.value = frequency.toFixed(1);
+        }
+        
+        // ==================== ANIMATION LOOP ====================
+        let lastTime = 0;
+        
+        function animate(timestamp = 0) {
+            // update visuals at ~60fps
+            const visualFrac = phase / (2 * Math.PI);
+            drawScope(visualFrac);
+            
+            // gentle status update
+            if (isEnabled) {
+                if (!sweepCheckbox.checked) {
+                    scopeStatus.textContent = `XY Mode • Tracing at ${frequency.toFixed(1)} Hz • Audio matches perfectly (auto-looped)`;
+                }
+            }
+            
+            requestAnimationFrame(animate);
+        }
+        
+        // ==================== INITIALIZATION ====================
+        function init() {
+            // initial black canvases
+            drawCtx.fillStyle = '#000';
+            drawCtx.fillRect(0, 0, DRAW_SIZE, DRAW_SIZE);
+            scopeCtx.fillStyle = '#000';
+            scopeCtx.fillRect(0, 0, SCOPE_SIZE, SCOPE_SIZE);
+            
+            redrawDrawing();
+            drawScope();
+            
+            syncFreq();
+            
+            // sync auto-close checkbox state
+            if (autoCloseCheckbox) {
+                autoCloseEnabled = autoCloseCheckbox.checked;
+            }
+            
+            // initial hint path (optional nice circle example - commented out)
+            // To help users, we can start with nothing.
+            
+            // start animation
+            animate();
+            
+            // keyboard hint
+            document.addEventListener('keydown', (e) => {
+                if (e.key.toLowerCase() === 'c' && document.activeElement.tagName === 'BODY') {
+                    clearBtn.click();
+                }
+            });
+            
+            // welcome message
+            setTimeout(() => {
+                if (path.length === 0) {
+                    drawStatus.textContent = 'Draw any shape (open paths OK). Use "Auto-snap close" toggle + "Enable as Signal Generator" to activate.';
+                }
+            }, 1200);
+            
+            console.log('%c[Custom XXY Oscilloscope] Ready. All features implemented: drawing + auto-close + real-time audio/visuals + frequency control + sweep mode.', 'color:#00aa00');
+        }
+        
+        // Boot everything
+        init();
+    </script>
+</body>
+</html>

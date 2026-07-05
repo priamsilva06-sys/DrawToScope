@@ -894,21 +894,25 @@
             // immediate visual update
         });
         
-       clearBtn.addEventListener('click', () => {
+      clearBtn.addEventListener('click', () => {
     path = [];
     isClosed = false;
     pathPoints = [];
     cumLengths = [];
     totalLength = 0;
     
-    // Only clear these if they exist - prevents errors
-    if (typeof lineStartPoint !== 'undefined') lineStartPoint = null;
-    if (typeof linePreviewEnd !== 'undefined') linePreviewEnd = null;
+    // Reset straight line tool state without breaking it
+    lineStartPoint = null;
+    linePreviewEnd = null;
+    
+    // Important: make sure we're not stuck in drawing mode
+    isDrawing = false;
     
     redrawDrawing();
     drawScope();
     drawStatus.textContent = 'Drawing cleared. Draw a new shape - sound will resume automatically.';
     drawStatus.style.color = '#00aa00';
+});
 });
 });
             }

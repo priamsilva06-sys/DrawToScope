@@ -894,7 +894,7 @@
             // immediate visual update
         });
         
-      clearBtn.addEventListener('click', () => {
+     clearBtn.addEventListener('click', () => {
     path = [];
     isClosed = false;
     pathPoints = [];
@@ -912,6 +912,7 @@
     drawScope();
     drawStatus.textContent = 'Drawing cleared. Draw a new shape - sound will resume automatically.';
     drawStatus.style.color = '#00aa00';
+});
 });
 });
 });

@@ -894,18 +894,22 @@
             // immediate visual update
         });
         
-        clearBtn.addEventListener('click', () => {
+       clearBtn.addEventListener('click', () => {
     path = [];
     isClosed = false;
     pathPoints = [];
     cumLengths = [];
     totalLength = 0;
-    lineStartPoint = null;
-    linePreviewEnd = null;
+    
+    // Only clear these if they exist - prevents errors
+    if (typeof lineStartPoint !== 'undefined') lineStartPoint = null;
+    if (typeof linePreviewEnd !== 'undefined') linePreviewEnd = null;
+    
     redrawDrawing();
     drawScope();
     drawStatus.textContent = 'Drawing cleared. Draw a new shape - sound will resume automatically.';
     drawStatus.style.color = '#00aa00';
+});
 });
             }
             drawStatus.textContent = 'Drawing cleared. Draw a new closed shape.';
